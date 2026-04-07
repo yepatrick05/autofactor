@@ -251,17 +251,6 @@ export default function GaragePage() {
                     )}
                     {isAdding && <p className="text-blue-400 mt-1 font-medium">Step {formStep} of 3</p>}
                 </div>
-                {!isAdding && (
-                    <button
-                        onClick={() => {
-                            setIsAdding(true);
-                            setFormStep(1);
-                        }}
-                        className="bg-white text-black px-6 py-2 rounded-full font-bold hover:bg-zinc-200 transition-colors"
-                    >
-                        + Add Car
-                    </button>
-                )}
             </header>
 
             {isAdding && (
