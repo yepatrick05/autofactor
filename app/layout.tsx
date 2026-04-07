@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import BottomNav from "@/components/BottomNav"; // IMPORT YOUR NEW COMPONENT
+import BottomNav from "@/components/BottomNav";
+import { VehicleProvider } from "@/components/VehicleContext";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -22,11 +23,10 @@ export default function RootLayout({
                 className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black`}
                 suppressHydrationWarning
             >
-                {/* We wrap children in a div with bottom padding so the Nav Bar doesn't cover your content! */}
-                <div className="pb-24">{children}</div>
-
-                {/* Inject the Global Navigation Shell */}
-                <BottomNav />
+                <VehicleProvider>
+                    <div className="pb-24">{children}</div>
+                    <BottomNav />
+                </VehicleProvider>
             </body>
         </html>
     );

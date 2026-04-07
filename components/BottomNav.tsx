@@ -34,10 +34,14 @@ export default function BottomNav() {
                                 </button>
                             ) : (
                                 // Modification Options (Will expand this later)
-                                <button className="bg-zinc-800 hover:bg-zinc-700 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-colors">
+                                <Link
+                                    href="/mods?new=true"
+                                    onClick={() => setIsFabMenuOpen(false)}
+                                    className="bg-zinc-800 hover:bg-zinc-700 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-colors"
+                                >
                                     <Wrench className="text-blue-400" size={24} />
                                     <span className="text-white font-medium text-sm">Add Mod</span>
-                                </button>
+                                </Link>
                             )}
                         </div>
                     </div>

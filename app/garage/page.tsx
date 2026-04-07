@@ -1,10 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { useVehicle } from "@/components/VehicleContext";
 
 const DUMMY_USER_ID = "03256a10-6bc1-4c80-b9ee-7c5bfe073b23";
 
 export default function GaragePage() {
+    const { activeVehicle, setActiveVehicle } = useVehicle();
+
     const [vehicles, setVehicles] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);
@@ -33,9 +36,15 @@ export default function GaragePage() {
                 .select("*")
                 .eq("user_id", DUMMY_USER_ID)
                 .order("created_at", { ascending: false });
-
+            if (data && data.length > 0) {
+                setVehicles(data);
+                // Auto-select the first car on initial load if we don't have one
+                if (!activeVehicle) {
+                    setActiveVehicle(data[0]);
+                }
+            }
             if (error) throw error;
-            setVehicles(data || []);
+            setVehicles(data);
         } catch (error: any) {
             console.error("Error fetching vehicles:", error.message);
         } finally {
@@ -298,29 +307,40 @@ export default function GaragePage() {
 
             {!isAdding && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {vehicles.map((car) => (
-                        <div
-                            key={car.id}
-                            className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 hover:border-zinc-600 transition-all cursor-pointer group"
-                        >
-                            <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 className="text-2xl font-bold group-hover:text-blue-400 transition-colors">
-                                        {car.year} {car.make}
-                                    </h3>
-                                    <p className="text-xl text-zinc-300">{car.model}</p>
+                    {vehicles.map((car) => {
+                        const isSelected = activeVehicle?.id === car.id;
+
+                        return (
+                            <div
+                                key={car.id}
+                                onClick={() => setActiveVehicle(car)} // Set it globally on click
+                                className={`bg-zinc-900 p-6 rounded-2xl border transition-all cursor-pointer group ${
+                                    isSelected
+                                        ? "border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.15)]"
+                                        : "border-zinc-800 hover:border-zinc-600"
+                                }`}
+                            >
+                                <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                        <h3
+                                            className={`text-2xl font-bold transition-colors ${isSelected ? "text-blue-400" : "group-hover:text-blue-400"}`}
+                                        >
+                                            {car.year} {car.make}
+                                        </h3>
+                                        <p className="text-xl text-zinc-300">{car.model}</p>
+                                    </div>
+                                    <span className="bg-zinc-950 text-zinc-400 px-3 py-1 rounded-full text-sm font-mono border border-zinc-800">
+                                        {car.odometer_reading.toLocaleString()} {car.odometer_unit}
+                                    </span>
                                 </div>
-                                <span className="bg-zinc-950 text-zinc-400 px-3 py-1 rounded-full text-sm font-mono border border-zinc-800">
-                                    {car.odometer_reading.toLocaleString()} {car.odometer_unit}
-                                </span>
+                                <div className="mt-6 flex justify-end">
+                                    <span className="text-zinc-500 text-sm group-hover:text-white transition-colors">
+                                        View Logbook →
+                                    </span>
+                                </div>
                             </div>
-                            <div className="mt-6 flex justify-end">
-                                <span className="text-zinc-500 text-sm group-hover:text-white transition-colors">
-                                    View Logbook →
-                                </span>
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </main>
