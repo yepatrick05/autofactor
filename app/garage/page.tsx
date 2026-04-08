@@ -1,29 +1,39 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import { useVehicle } from "@/components/VehicleContext";
 
+import { useRouter, useSearchParams } from "next/navigation";
+
 const DUMMY_USER_ID = "03256a10-6bc1-4c80-b9ee-7c5bfe073b23";
 
-export default function GaragePage() {
-    const { activeVehicle, setActiveVehicle } = useVehicle();
+function GarageContent() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
 
+    const isAddingNew = searchParams.get("new") === "true";
+
+    const { activeVehicle, setActiveVehicle } = useVehicle();
     const [vehicles, setVehicles] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);
 
     const [formStep, setFormStep] = useState(1);
-
     const [make, setMake] = useState("");
     const [model, setModel] = useState("");
     const [year, setYear] = useState("");
     const [odometer, setOdometer] = useState("");
-
     const [purchaseCost, setPurchaseCost] = useState("");
     const [purchaseDate, setPurchaseDate] = useState("");
-
     const [fuelUnit, setFuelUnit] = useState("liters");
     const [odometerUnit, setOdometerUnit] = useState("km");
+
+    useEffect(() => {
+        if (isAddingNew) {
+            setIsAdding(true);
+            setFormStep(1);
+        }
+    }, [isAddingNew]);
 
     useEffect(() => {
         fetchVehicles();
@@ -36,15 +46,14 @@ export default function GaragePage() {
                 .select("*")
                 .eq("user_id", DUMMY_USER_ID)
                 .order("created_at", { ascending: false });
-            if (data && data.length > 0) {
-                setVehicles(data);
-                // Auto-select the first car on initial load if we don't have one
-                if (!activeVehicle) {
-                    setActiveVehicle(data[0]);
-                }
-            }
+
             if (error) throw error;
-            setVehicles(data);
+
+            setVehicles(data || []);
+
+            if (data && data.length > 0 && !activeVehicle) {
+                setActiveVehicle(data[0]);
+            }
         } catch (error: any) {
             console.error("Error fetching vehicles:", error.message);
         } finally {
@@ -71,6 +80,7 @@ export default function GaragePage() {
 
             if (error) throw error;
 
+            // Reset Wizard and UI
             setIsAdding(false);
             setFormStep(1);
             setMake("");
@@ -82,9 +92,12 @@ export default function GaragePage() {
             setFuelUnit("liters");
             setOdometerUnit("km");
 
+            // NEW: Clear the ?new=true from the URL so it doesn't stay stuck open
+            router.push("/garage");
+
             await fetchVehicles();
         } catch (error: any) {
-            console.error("Error adding vehicle:", error.message);
+            console.error("Error adding vehicle:", error.message || JSON.stringify(error, null, 2));
             alert("Failed to add vehicle. Check console.");
         } finally {
             setLoading(false);
@@ -128,9 +141,13 @@ export default function GaragePage() {
                 />
             </div>
             <div className="flex justify-end gap-3 mt-4">
+                {/* NEW: On cancel, clear the URL as well */}
                 <button
                     type="button"
-                    onClick={() => setIsAdding(false)}
+                    onClick={() => {
+                        setIsAdding(false);
+                        router.push("/garage");
+                    }}
                     className="px-6 py-2 text-zinc-400 hover:text-white font-semibold transition-colors"
                 >
                     Cancel
@@ -153,7 +170,6 @@ export default function GaragePage() {
                 <span className="text-4xl mb-3">📸</span>
                 <h3 className="text-lg font-semibold mb-1">Add a Cover Photo</h3>
                 <p className="text-zinc-500 text-sm mb-4">Show off the stance. (Optional)</p>
-
                 <input
                     type="file"
                     accept="image/*"
@@ -166,7 +182,7 @@ export default function GaragePage() {
                     onClick={() => setFormStep(1)}
                     className="px-6 py-2 text-zinc-400 hover:text-white font-semibold transition-colors"
                 >
-                    Back
+                    ← Back
                 </button>
                 <button
                     type="button"
@@ -212,8 +228,8 @@ export default function GaragePage() {
                         value={fuelUnit}
                         onChange={(e) => setFuelUnit(e.target.value)}
                     >
-                        <option value="liters">Liters</option>
-                        <option value="gallons">Gallons</option>
+                        <option value="liters">Liters (L)</option>
+                        <option value="gallons">Gallons (Gal)</option>
                     </select>
                 </div>
                 <div className="flex flex-col gap-1">
@@ -225,8 +241,8 @@ export default function GaragePage() {
                         value={odometerUnit}
                         onChange={(e) => setOdometerUnit(e.target.value)}
                     >
-                        <option value="km">Kilometers</option>
-                        <option value="miles">Miles</option>
+                        <option value="km">Kilometers (KM)</option>
+                        <option value="miles">Miles (MI)</option>
                     </select>
                 </div>
             </div>
@@ -236,7 +252,7 @@ export default function GaragePage() {
                     onClick={() => setFormStep(2)}
                     className="px-6 py-2 text-zinc-400 hover:text-white font-semibold transition-colors"
                 >
-                    Back
+                    ← Back
                 </button>
                 <button
                     type="button"
@@ -254,7 +270,6 @@ export default function GaragePage() {
             <header className="flex justify-between items-center mb-12 mt-8">
                 <div>
                     <h1 className="text-4xl font-extrabold tracking-tight">My Garage</h1>
-
                     {!isAdding && vehicles.length > 0 && (
                         <p className="text-zinc-400 mt-1">Select a vehicle to view its logbook.</p>
                     )}
@@ -268,9 +283,8 @@ export default function GaragePage() {
                         <h2 className="text-2xl font-bold">
                             {formStep === 1 && "Vehicle Details"}
                             {formStep === 2 && "Cover Photo"}
-                            {formStep === 3 && "Optional Details"}
+                            {formStep === 3 && "Enthusiast Specs"}
                         </h2>
-
                         <div className="flex gap-2">
                             <div className={`h-2 w-8 rounded-full ${formStep >= 1 ? "bg-blue-500" : "bg-zinc-700"}`} />
                             <div
@@ -281,7 +295,6 @@ export default function GaragePage() {
                             />
                         </div>
                     </div>
-
                     <form onSubmit={(e) => e.preventDefault()}>
                         {formStep === 1 && renderStep1()}
                         {formStep === 2 && renderStep2()}
@@ -309,16 +322,11 @@ export default function GaragePage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {vehicles.map((car) => {
                         const isSelected = activeVehicle?.id === car.id;
-
                         return (
                             <div
                                 key={car.id}
-                                onClick={() => setActiveVehicle(car)} // Set it globally on click
-                                className={`bg-zinc-900 p-6 rounded-2xl border transition-all cursor-pointer group ${
-                                    isSelected
-                                        ? "border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.15)]"
-                                        : "border-zinc-800 hover:border-zinc-600"
-                                }`}
+                                onClick={() => setActiveVehicle(car)}
+                                className={`bg-zinc-900 p-6 rounded-2xl border transition-all cursor-pointer group ${isSelected ? "border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.15)]" : "border-zinc-800 hover:border-zinc-600"}`}
                             >
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
@@ -344,5 +352,19 @@ export default function GaragePage() {
                 </div>
             )}
         </main>
+    );
+}
+
+export default function GaragePage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="bg-black min-h-screen flex items-center justify-center">
+                    <p className="text-zinc-500">Loading garage...</p>
+                </div>
+            }
+        >
+            <GarageContent />
+        </Suspense>
     );
 }

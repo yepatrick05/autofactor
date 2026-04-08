@@ -47,6 +47,9 @@ function ModsContent() {
     const [addStep, setAddStep] = useState(1); // 1 = Grid, 2 = Form
     const [selectedCategory, setSelectedCategory] = useState("");
 
+    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+
     // Form State
     const [name, setName] = useState("");
     const [cost, setCost] = useState("");
@@ -93,12 +96,30 @@ function ModsContent() {
         setCost("");
         setSource("");
         setNotes("");
-        router.push("/mods"); // Removes the ?new=true from URL
+        router.push("/mods");
     };
 
     const handleSaveMod = async () => {
+        setIsUploading(true);
         try {
-            const { error } = await supabase.from("modifications").insert([
+            let imageUrl = null;
+
+            if (imageFile) {
+                const fileExt = imageFile.name.split(".").pop();
+                const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+                const { error: uploadError } = await supabase.storage.from("mod-images").upload(fileName, imageFile);
+
+                if (uploadError) throw uploadError;
+
+                const {
+                    data: { publicUrl },
+                } = supabase.storage.from("mod-images").getPublicUrl(fileName);
+
+                imageUrl = publicUrl;
+            }
+
+            const { error: dbError } = await supabase.from("modifications").insert([
                 {
                     vehicle_id: activeVehicle.id,
                     name,
@@ -107,18 +128,21 @@ function ModsContent() {
                     location: source,
                     notes,
                     is_wishlist: activeTab === "wishlist",
+                    image_url: imageUrl,
                 },
             ]);
 
-            if (error) throw error;
+            if (dbError) throw dbError;
+
+            setImageFile(null);
             handleCloseWizard();
-        } catch (error) {
-            console.error("Error saving mod", error);
-            alert("Failed to save mod.");
+        } catch (error: any) {
+            console.error("Error saving mod", error.message || JSON.stringify(error, null, 2));
+            alert("Failed to save mod. Check console.");
+        } finally {
+            setIsUploading(false);
         }
     };
-
-    // --- UI RENDERERS ---
 
     if (isAddingNew) {
         return (
@@ -184,6 +208,18 @@ function ModsContent() {
                             onChange={(e) => setNotes(e.target.value)}
                         />
 
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                            <label className="text-sm text-zinc-400 font-bold uppercase tracking-wider mb-2 block">
+                                Attach Receipt or Photo
+                            </label>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => setImageFile(e.target.files ? e.target.files[0] : null)}
+                                className="text-sm text-zinc-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
+                            />
+                        </div>
+
                         <div className="flex gap-3 mt-4">
                             <button
                                 onClick={() => setAddStep(1)}
@@ -247,10 +283,13 @@ function ModsContent() {
                             key={mod.id}
                             className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex gap-4 items-center"
                         >
-                            {/* Image Placeholder */}
-                            <div className="w-16 h-16 bg-zinc-800 rounded-xl flex items-center justify-center flex-shrink-0">
-                                {CATEGORIES.find((c) => c.id === mod.category)?.icon || (
-                                    <Wrench className="text-zinc-600" />
+                            <div className="w-16 h-16 bg-zinc-800 rounded-xl flex items-center justify-center shrink-0 overflow-hidden">
+                                {mod.image_url ? (
+                                    <img src={mod.image_url} alt={mod.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    CATEGORIES.find((c) => c.id === mod.category)?.icon || (
+                                        <Wrench className="text-zinc-600" />
+                                    )
                                 )}
                             </div>
 
@@ -273,7 +312,6 @@ function ModsContent() {
     );
 }
 
-// Next.js requires components using useSearchParams to be wrapped in a Suspense boundary
 export default function ModsPage() {
     return (
         <Suspense fallback={<div className="bg-black min-h-screen"></div>}>
