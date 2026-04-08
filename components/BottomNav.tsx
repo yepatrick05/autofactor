@@ -2,23 +2,21 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Wrench, Receipt, Calendar, Plus, X } from "lucide-react";
+import { Home, BookOpen, PieChart, Calendar, Plus, Wrench, Receipt } from "lucide-react";
 
 export default function BottomNav() {
     const pathname = usePathname();
     const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
 
-    // We don't want the navigation bar on the landing page!
     if (pathname === "/") return null;
 
-    // Context-Aware FAB Logic
     const handleFabClick = () => {
         setIsFabMenuOpen(!isFabMenuOpen);
     };
 
     return (
         <>
-            {/* THE CONTEXTUAL MENU OVERLAY (The 2x2 Grid you envisioned) */}
+            {/* THE CONTEXTUAL MENU OVERLAY */}
             {isFabMenuOpen && (
                 <div className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm flex items-end justify-center pb-32 animate-in fade-in duration-200">
                     <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl w-11/12 max-w-sm shadow-2xl animate-in slide-in-from-bottom-10">
@@ -27,25 +25,35 @@ export default function BottomNav() {
                         </h3>
                         <div className="grid grid-cols-2 gap-4">
                             {pathname === "/garage" ? (
-                                // Garage Options
+                                // --- GARAGE FAB MENU ---
                                 <Link
                                     href="/garage?new=true"
                                     onClick={() => setIsFabMenuOpen(false)}
-                                    className="bg-zinc-800 hover:bg-zinc-700 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-colors"
+                                    className="bg-zinc-800 hover:bg-zinc-700 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-colors col-span-2"
                                 >
-                                    <Plus className="text-blue-400" size={24} />
+                                    <Home className="text-blue-400" size={24} />
                                     <span className="text-white font-medium text-sm">Add Vehicle</span>
                                 </Link>
                             ) : (
-                                // Modification Options (Will expand this later)
-                                <Link
-                                    href="/mods?new=true"
-                                    onClick={() => setIsFabMenuOpen(false)}
-                                    className="bg-zinc-800 hover:bg-zinc-700 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-colors"
-                                >
-                                    <Wrench className="text-blue-400" size={24} />
-                                    <span className="text-white font-medium text-sm">Add Mod</span>
-                                </Link>
+                                // --- LOGBOOK FAB MENU (The Hybrid UI) ---
+                                <>
+                                    <Link
+                                        href="/logbook?new=mod"
+                                        onClick={() => setIsFabMenuOpen(false)}
+                                        className="bg-zinc-800 hover:bg-zinc-700 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-colors"
+                                    >
+                                        <Wrench className="text-blue-400" size={24} />
+                                        <span className="text-white font-medium text-sm">Add Mod</span>
+                                    </Link>
+                                    <Link
+                                        href="/logbook?new=maintenance"
+                                        onClick={() => setIsFabMenuOpen(false)}
+                                        className="bg-zinc-800 hover:bg-zinc-700 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-colors"
+                                    >
+                                        <Receipt className="text-blue-400" size={24} />
+                                        <span className="text-white font-medium text-sm">Add Expense</span>
+                                    </Link>
+                                </>
                             )}
                         </div>
                     </div>
@@ -55,7 +63,6 @@ export default function BottomNav() {
             {/* THE BOTTOM NAVIGATION BAR */}
             <div className="fixed bottom-0 left-0 right-0 z-50 bg-zinc-950/90 backdrop-blur-md border-t border-zinc-800 pb-safe">
                 <div className="max-w-md mx-auto relative flex justify-between items-center px-6 py-3">
-                    {/* Left Tabs */}
                     <Link
                         href="/garage"
                         className={`flex flex-col items-center gap-1 transition-colors ${pathname.includes("/garage") ? "text-blue-400" : "text-zinc-500 hover:text-zinc-300"}`}
@@ -64,15 +71,16 @@ export default function BottomNav() {
                         <span className="text-[10px] font-medium">Garage</span>
                     </Link>
 
+                    {/* Renamed to Logbook */}
                     <Link
-                        href="/mods"
-                        className={`flex flex-col items-center gap-1 transition-colors ${pathname.includes("/mods") ? "text-blue-400" : "text-zinc-500 hover:text-zinc-300"}`}
+                        href="/logbook"
+                        className={`flex flex-col items-center gap-1 transition-colors ${pathname.includes("/logbook") ? "text-blue-400" : "text-zinc-500 hover:text-zinc-300"}`}
                     >
-                        <Wrench size={24} strokeWidth={pathname.includes("/mods") ? 2.5 : 2} />
-                        <span className="text-[10px] font-medium">Mods</span>
+                        <BookOpen size={24} strokeWidth={pathname.includes("/logbook") ? 2.5 : 2} />
+                        <span className="text-[10px] font-medium">Logbook</span>
                     </Link>
 
-                    {/* Center FAB (Floating Action Button) */}
+                    {/* Center FAB */}
                     <div className="relative -top-6">
                         <button
                             onClick={handleFabClick}
@@ -86,13 +94,13 @@ export default function BottomNav() {
                         </button>
                     </div>
 
-                    {/* Right Tabs */}
+                    {/* Renamed to Financials */}
                     <Link
-                        href="/expenses"
-                        className={`flex flex-col items-center gap-1 transition-colors ${pathname.includes("/expenses") ? "text-blue-400" : "text-zinc-500 hover:text-zinc-300"}`}
+                        href="/financials"
+                        className={`flex flex-col items-center gap-1 transition-colors ${pathname.includes("/financials") ? "text-blue-400" : "text-zinc-500 hover:text-zinc-300"}`}
                     >
-                        <Receipt size={24} strokeWidth={pathname.includes("/expenses") ? 2.5 : 2} />
-                        <span className="text-[10px] font-medium">Expenses</span>
+                        <PieChart size={24} strokeWidth={pathname.includes("/financials") ? 2.5 : 2} />
+                        <span className="text-[10px] font-medium">Financials</span>
                     </Link>
 
                     <Link

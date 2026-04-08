@@ -2,6 +2,8 @@
 import { useState, useEffect, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import { useSearchParams, useRouter } from "next/navigation";
+
+// Added List and ChevronUp at the end
 import {
     Settings,
     Droplets,
@@ -13,6 +15,8 @@ import {
     PaintBucket,
     Cpu,
     Wrench,
+    List,
+    ChevronUp,
 } from "lucide-react";
 
 import { useVehicle } from "@/components/VehicleContext";
@@ -42,6 +46,7 @@ function ModsContent() {
 
     const [mods, setMods] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<"installed" | "wishlist">("installed");
+    const [isExpanded, setIsExpanded] = useState(false); // NEW: Tracks list state
 
     // Wizard State
     const [addStep, setAddStep] = useState(1); // 1 = Grid, 2 = Form
@@ -256,13 +261,19 @@ function ModsContent() {
                 {/* The Segmented Control */}
                 <div className="bg-zinc-900 p-1 rounded-xl flex">
                     <button
-                        onClick={() => setActiveTab("installed")}
+                        onClick={() => {
+                            setActiveTab("installed");
+                            setIsExpanded(false);
+                        }} // Added setIsExpanded
                         className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "installed" ? "bg-zinc-700 text-white shadow-md" : "text-zinc-500"}`}
                     >
                         Installed
                     </button>
                     <button
-                        onClick={() => setActiveTab("wishlist")}
+                        onClick={() => {
+                            setActiveTab("wishlist");
+                            setIsExpanded(false);
+                        }} // Added setIsExpanded
                         className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "wishlist" ? "bg-blue-600 text-white shadow-md" : "text-zinc-500"}`}
                     >
                         Wishlist
@@ -271,43 +282,89 @@ function ModsContent() {
             </header>
 
             {/* The Timeline Feed */}
-            <div className="flex flex-col gap-4 pb-12">
+            <div className="flex flex-col gap-4">
                 {mods.length === 0 ? (
                     <div className="text-center py-20 bg-zinc-900/30 rounded-2xl border border-zinc-800 border-dashed">
                         <p className="text-zinc-500 mb-2">No mods in this list yet.</p>
                         <p className="text-sm text-zinc-600">Hit the + button to add one.</p>
                     </div>
                 ) : (
-                    mods.map((mod) => (
-                        <div
-                            key={mod.id}
-                            className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex gap-4 items-center"
-                        >
-                            <div className="w-16 h-16 bg-zinc-800 rounded-xl flex items-center justify-center shrink-0 overflow-hidden">
-                                {mod.image_url ? (
-                                    <img src={mod.image_url} alt={mod.name} className="w-full h-full object-cover" />
-                                ) : (
-                                    CATEGORIES.find((c) => c.id === mod.category)?.icon || (
-                                        <Wrench className="text-zinc-600" />
-                                    )
-                                )}
-                            </div>
+                    (isExpanded ? mods : mods.slice(0, 3)).map((mod, index) => {
+                        // If we are collapsed and this is the 3rd card, fade it out
+                        const isFaded = !isExpanded && index === 2;
 
-                            {/* Details */}
-                            <div className="flex-1 min-w-0">
-                                <h3 className="font-bold text-lg truncate">{mod.name}</h3>
-                                <p className="text-blue-400 text-xs font-semibold uppercase tracking-wider mb-1">
-                                    {CATEGORIES.find((c) => c.id === mod.category)?.label}
-                                </p>
-                                <div className="flex justify-between items-center text-sm text-zinc-400">
-                                    <span>{new Date(mod.installed_date).toLocaleDateString()}</span>
-                                    <span className="font-mono">${mod.cost}</span>
+                        return (
+                            <div
+                                key={mod.id}
+                                className={`bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex gap-4 items-center transition-all duration-300 ${isFaded ? "opacity-70" : ""}`}
+                                style={
+                                    isFaded
+                                        ? {
+                                              maskImage: "linear-gradient(to bottom, black 20%, transparent 100%)",
+                                              WebkitMaskImage:
+                                                  "linear-gradient(to bottom, black 20%, transparent 100%)",
+                                          }
+                                        : {}
+                                }
+                            >
+                                {/* Image Placeholder */}
+                                <div className="w-16 h-16 bg-zinc-800 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">
+                                    {mod.image_url ? (
+                                        <img
+                                            src={mod.image_url}
+                                            alt={mod.name}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        CATEGORIES.find((c) => c.id === mod.category)?.icon || (
+                                            <Wrench className="text-zinc-600" />
+                                        )
+                                    )}
+                                </div>
+
+                                {/* Details */}
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-bold text-lg truncate">{mod.name}</h3>
+                                    <p className="text-blue-400 text-xs font-semibold uppercase tracking-wider mb-1">
+                                        {CATEGORIES.find((c) => c.id === mod.category)?.label}
+                                    </p>
+                                    <div className="flex justify-between items-center text-sm text-zinc-400">
+                                        <span>{new Date(mod.installed_date).toLocaleDateString()}</span>
+                                        <span className="font-mono">${mod.cost}</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </div>
+
+            {/* The View All / Collapse Button */}
+            {mods.length > 2 && (
+                <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="w-full bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 py-3 rounded-xl flex items-center justify-center gap-2 text-zinc-400 hover:text-white font-semibold transition-colors mt-2"
+                >
+                    {!isExpanded ? (
+                        <>
+                            <List size={18} /> View All {mods.length} Mods
+                        </>
+                    ) : (
+                        <>
+                            <ChevronUp size={18} /> Collapse List
+                        </>
+                    )}
+                </button>
+            )}
+
+            {/* NEW: The Metrics / Sorting Placeholder Section */}
+            {!isExpanded && (
+                <div className="mt-8 mb-24 bg-zinc-900/20 border border-zinc-800/50 rounded-3xl p-6 text-center animate-in fade-in duration-500">
+                    <Wrench className="text-zinc-700 mx-auto mb-3" size={32} />
+                    <h3 className="text-zinc-300 font-bold mb-1">Analytics Sandbox</h3>
+                    <p className="text-zinc-500 text-sm">in progress</p>
+                </div>
+            )}
         </main>
     );
 }
