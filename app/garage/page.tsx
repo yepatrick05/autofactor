@@ -92,7 +92,6 @@ function GarageContent() {
             setFuelUnit("liters");
             setOdometerUnit("km");
 
-            // NEW: Clear the ?new=true from the URL so it doesn't stay stuck open
             router.push("/garage");
 
             await fetchVehicles();
@@ -141,7 +140,6 @@ function GarageContent() {
                 />
             </div>
             <div className="flex justify-end gap-3 mt-4">
-                {/* NEW: On cancel, clear the URL as well */}
                 <button
                     type="button"
                     onClick={() => {

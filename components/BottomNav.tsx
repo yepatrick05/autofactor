@@ -16,7 +16,6 @@ export default function BottomNav() {
 
     return (
         <>
-            {/* THE CONTEXTUAL MENU OVERLAY */}
             {isFabMenuOpen && (
                 <div className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm flex items-end justify-center pb-32 animate-in fade-in duration-200">
                     <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl w-11/12 max-w-sm shadow-2xl animate-in slide-in-from-bottom-10">
@@ -25,7 +24,6 @@ export default function BottomNav() {
                         </h3>
                         <div className="grid grid-cols-2 gap-4">
                             {pathname === "/garage" ? (
-                                // --- GARAGE FAB MENU ---
                                 <Link
                                     href="/garage?new=true"
                                     onClick={() => setIsFabMenuOpen(false)}
@@ -35,7 +33,6 @@ export default function BottomNav() {
                                     <span className="text-white font-medium text-sm">Add Vehicle</span>
                                 </Link>
                             ) : (
-                                // --- LOGBOOK FAB MENU (The Hybrid UI) ---
                                 <>
                                     <Link
                                         href="/logbook?new=mod"
@@ -60,7 +57,6 @@ export default function BottomNav() {
                 </div>
             )}
 
-            {/* THE BOTTOM NAVIGATION BAR */}
             <div className="fixed bottom-0 left-0 right-0 z-50 bg-zinc-950/90 backdrop-blur-md border-t border-zinc-800 pb-safe">
                 <div className="max-w-md mx-auto relative flex justify-between items-center px-6 py-3">
                     <Link
@@ -71,7 +67,6 @@ export default function BottomNav() {
                         <span className="text-[10px] font-medium">Garage</span>
                     </Link>
 
-                    {/* Renamed to Logbook */}
                     <Link
                         href="/logbook"
                         className={`flex flex-col items-center gap-1 transition-colors ${pathname.includes("/logbook") ? "text-blue-400" : "text-zinc-500 hover:text-zinc-300"}`}
@@ -80,7 +75,6 @@ export default function BottomNav() {
                         <span className="text-[10px] font-medium">Logbook</span>
                     </Link>
 
-                    {/* Center FAB */}
                     <div className="relative -top-6">
                         <button
                             onClick={handleFabClick}
@@ -94,7 +88,6 @@ export default function BottomNav() {
                         </button>
                     </div>
 
-                    {/* Renamed to Financials */}
                     <Link
                         href="/financials"
                         className={`flex flex-col items-center gap-1 transition-colors ${pathname.includes("/financials") ? "text-blue-400" : "text-zinc-500 hover:text-zinc-300"}`}
