@@ -24,8 +24,9 @@ import {
     Activity,
     Box,
     BookOpen,
-    Link,
 } from "lucide-react";
+
+import Link from "next/link";
 
 const MOD_CATEGORIES = [
     { id: "engine", label: "Engine", icon: <Settings size={24} /> },
@@ -479,8 +480,9 @@ function LogbookContent() {
 
                         return (
                             <Link
+                                href={`/logbook/${item.id}?type=${isModList ? "mod" : "maintenance"}`}
                                 key={item.id}
-                                className={`bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex gap-4 items-center transition-all duration-300 ${isFaded ? "opacity-70" : ""}`}
+                                className={`bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex gap-4 items-center transition-all duration-300 cursor-pointer active:scale-[0.98] ${isFaded ? "opacity-70" : ""}`}
                                 style={
                                     isFaded
                                         ? {
@@ -498,14 +500,17 @@ function LogbookContent() {
                                         catObj?.icon || <Box className="text-zinc-600" />
                                     )}
                                 </div>
+
                                 <div className="flex-1 min-w-0">
                                     <div className="flex justify-between items-start">
                                         <h3 className="font-bold text-lg truncate pr-2">{itemTitle}</h3>
                                     </div>
+
                                     <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider mb-1">
                                         {catObj?.label}{" "}
                                         {item.location || item.provider ? `• ${item.location || item.provider}` : ""}
                                     </p>
+
                                     <div className="flex justify-between items-center text-sm text-zinc-400">
                                         <span>{itemDate}</span>
                                         <span className="font-mono font-bold text-white">${item.cost}</span>
