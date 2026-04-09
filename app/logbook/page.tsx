@@ -3,6 +3,7 @@ import { useState, useEffect, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import { useVehicle } from "@/components/VehicleContext";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import {
     Settings,
     Droplets,
@@ -15,7 +16,6 @@ import {
     Cpu,
     Wrench,
     List,
-    ChevronUp,
     Fuel,
     Shield,
     FileText,
@@ -24,9 +24,10 @@ import {
     Activity,
     Box,
     BookOpen,
+    ArrowLeft,
+    ArrowUp,
+    ArrowDown,
 } from "lucide-react";
-
-import Link from "next/link";
 
 const MOD_CATEGORIES = [
     { id: "engine", label: "Engine", icon: <Settings size={24} /> },
@@ -57,18 +58,24 @@ function LogbookContent() {
     const searchParams = useSearchParams();
     const { activeVehicle } = useVehicle();
 
+    // --- VIEW STATE ---
     const [activeTab, setActiveTab] = useState<"mods" | "maintenance">("mods");
     const [feedFilter, setFeedFilter] = useState<"history" | "planned">("history");
-    const [isExpanded, setIsExpanded] = useState(false);
     const [feedData, setFeedData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
+    // NEW: Advanced View State
+    const [isListView, setIsListView] = useState(false);
+    const [sortField, setSortField] = useState("date");
+    const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
+
+    // --- WIZARD STATE ---
     const [wizardType, setWizardType] = useState<"mod" | "maintenance" | null>(null);
     const [addStep, setAddStep] = useState(1);
     const [selectedCategory, setSelectedCategory] = useState("");
-
     const [isFuture, setIsFuture] = useState(false);
 
+    // Form State
     const [title, setTitle] = useState("");
     const [cost, setCost] = useState("");
     const [provider, setProvider] = useState("");
@@ -97,7 +104,6 @@ function LogbookContent() {
         const fetchFeed = async () => {
             setLoading(true);
             const isPlanned = feedFilter === "planned";
-
             if (activeTab === "mods") {
                 const { data } = await supabase
                     .from("modifications")
@@ -119,6 +125,30 @@ function LogbookContent() {
         };
         fetchFeed();
     }, [activeVehicle?.id, activeTab, wizardType, feedFilter]);
+
+    // --- THE SORTING ENGINE ---
+    const sortedData = [...feedData].sort((a, b) => {
+        const isModList = activeTab === "mods";
+
+        // Sort by Date
+        if (sortField === "date") {
+            const dateA = new Date(isModList ? a.installed_date : a.date_logged).getTime();
+            const dateB = new Date(isModList ? b.installed_date : b.date_logged).getTime();
+            return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+        }
+        // Sort by Cost
+        if (sortField === "cost") {
+            return sortOrder === "desc" ? b.cost - a.cost : a.cost - b.cost;
+        }
+        // Sort by Name
+        if (sortField === "name") {
+            const nameA = isModList ? a.name : a.title;
+            const nameB = isModList ? b.name : b.title;
+            // asc = A-Z, desc = Z-A
+            return sortOrder === "desc" ? nameB.localeCompare(nameA) : nameA.localeCompare(nameB);
+        }
+        return 0;
+    });
 
     const handleCloseWizard = () => {
         setWizardType(null);
@@ -167,7 +197,6 @@ function LogbookContent() {
                 const { error } = await supabase.from("maintenance").insert([
                     {
                         vehicle_id: activeVehicle.id,
-
                         title: selectedCategory === "fuel" ? "Fuel" : title,
                         category: selectedCategory,
                         cost: cost ? parseFloat(cost) : 0,
@@ -182,7 +211,6 @@ function LogbookContent() {
                 ]);
                 if (error) throw error;
             }
-
             handleCloseWizard();
         } catch (error: any) {
             console.error("Save Error:", error);
@@ -208,6 +236,7 @@ function LogbookContent() {
         );
     }
 
+    // --- WIZARD UI ---
     if (wizardType) {
         const isMod = wizardType === "mod";
         const categories = isMod ? MOD_CATEGORIES : MAINT_CATEGORIES;
@@ -217,7 +246,7 @@ function LogbookContent() {
                 <header className="flex justify-between items-center mb-8">
                     <h1 className="text-2xl font-bold flex items-baseline gap-2">
                         {isMod ? "Modifications" : "Expenses"}
-                        <span className={`text-lg font-bold ${isFuture ? "text-blue-400" : "text-zinc-500"}`}>
+                        <span className={`text-lg font-medium ${isFuture ? "text-blue-400" : "text-zinc-500"}`}>
                             {isFuture ? (isMod ? "Wishlist" : "Upcoming") : isMod ? "Installed" : "Completed"}
                         </span>
                     </h1>
@@ -225,10 +254,6 @@ function LogbookContent() {
                         Cancel
                     </button>
                 </header>
-
-                <span className="font-bold text-blue-400">
-                    {categories.find((c) => c.id === selectedCategory)?.label}
-                </span>
 
                 {addStep === 1 ? (
                     <div className="flex flex-col gap-6">
@@ -246,11 +271,9 @@ function LogbookContent() {
                                 {isMod ? "Wishlist" : "Upcoming"}
                             </button>
                         </div>
-
                         <h3 className="text-zinc-400 font-bold uppercase tracking-wider text-sm -mb-2">
                             Select Category
                         </h3>
-
                         <div className="grid grid-cols-2 gap-4">
                             {categories.map((cat) => (
                                 <button
@@ -272,7 +295,6 @@ function LogbookContent() {
                         <div className="bg-blue-900/20 border border-blue-500/30 p-4 rounded-xl flex items-center gap-3 mb-2">
                             {categories.find((c) => c.id === selectedCategory)?.icon}
                             <span className="font-bold text-blue-400">
-                                {isFuture ? (isMod ? "Wishlist: " : "Upcoming: ") : ""}
                                 {categories.find((c) => c.id === selectedCategory)?.label}
                             </span>
                         </div>
@@ -287,7 +309,6 @@ function LogbookContent() {
                                         value={cost}
                                         onChange={(e) => setCost(e.target.value)}
                                     />
-
                                     <input
                                         type="number"
                                         placeholder={`Volume (${activeVehicle.fuel_unit})`}
@@ -313,7 +334,7 @@ function LogbookContent() {
                                 </div>
                                 <input
                                     type="text"
-                                    placeholder="Location (e.g. Shell, BP)"
+                                    placeholder="Gas Station / Brand"
                                     className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white focus:outline-none focus:border-zinc-500"
                                     value={provider}
                                     onChange={(e) => setProvider(e.target.value)}
@@ -323,7 +344,7 @@ function LogbookContent() {
                             <>
                                 <input
                                     type="text"
-                                    placeholder={"Title"}
+                                    placeholder="Title"
                                     className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white focus:outline-none focus:border-zinc-500"
                                     value={title}
                                     onChange={(e) => setTitle(e.target.value)}
@@ -345,7 +366,7 @@ function LogbookContent() {
                                 </div>
                                 <input
                                     type="text"
-                                    placeholder={isMod ? "Vendor / Brand (Optional)" : "Shop / Provider (Optional)"}
+                                    placeholder="Vendor / Shop (Optional)"
                                     className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white focus:outline-none focus:border-zinc-500"
                                     value={provider}
                                     onChange={(e) => setProvider(e.target.value)}
@@ -363,7 +384,7 @@ function LogbookContent() {
                         )}
 
                         <textarea
-                            placeholder="Notes"
+                            placeholder="Notes (Specs, thoughts...)"
                             rows={3}
                             className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white focus:outline-none focus:border-zinc-500 resize-none"
                             value={notes}
@@ -372,7 +393,7 @@ function LogbookContent() {
 
                         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
                             <label className="text-sm text-zinc-400 font-bold uppercase tracking-wider mb-2 block">
-                                {isMod ? "Attach Photo or Receipt" : "Attach Receipt or Invoice"}
+                                Attach Receipt or Photo
                             </label>
                             <input
                                 type="file"
@@ -403,71 +424,53 @@ function LogbookContent() {
         );
     }
 
-    return (
-        <main className="min-h-screen bg-black text-white p-6 max-w-md mx-auto">
-            <header className="mb-6 mt-4">
-                <h1 className="text-3xl font-extrabold tracking-tight mb-4">
-                    {activeVehicle.year} {activeVehicle.make} {activeVehicle.model}
-                </h1>
-
-                <div className="bg-zinc-900 p-1 rounded-xl flex">
-                    <button
-                        onClick={() => {
-                            setActiveTab("mods");
-                            setIsExpanded(false);
-                            setFeedFilter("history");
-                        }}
-                        className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "mods" ? "bg-blue-600 text-white shadow-md" : "text-zinc-500 hover:text-zinc-300"}`}
-                    >
-                        Modifications
-                    </button>
-                    <button
-                        onClick={() => {
-                            setActiveTab("maintenance");
-                            setIsExpanded(false);
-                            setFeedFilter("history");
-                        }}
-                        className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "maintenance" ? "bg-zinc-700 text-white shadow-md" : "text-zinc-500 hover:text-zinc-300"}`}
-                    >
-                        Expenses
-                    </button>
-                </div>
-
-                <div className="flex gap-6 mt-5 border-b border-zinc-800/50 px-2">
-                    <button
-                        onClick={() => {
-                            setFeedFilter("history");
-                            setIsExpanded(false);
-                        }}
-                        className={`text-sm font-bold pb-3 border-b-2 transition-all ${feedFilter === "history" ? "border-blue-500 text-white" : "border-transparent text-zinc-600 hover:text-zinc-400"}`}
-                    >
-                        {activeTab === "mods" ? "Installed" : "Completed"}
-                    </button>
-                    <button
-                        onClick={() => {
-                            setFeedFilter("planned");
-                            setIsExpanded(false);
-                        }}
-                        className={`text-sm font-bold pb-3 border-b-2 transition-all ${feedFilter === "planned" ? "border-blue-500 text-white" : "border-transparent text-zinc-600 hover:text-zinc-400"}`}
-                    >
-                        {activeTab === "mods" ? "Wishlist" : "Upcoming"}
-                    </button>
-                </div>
-            </header>
-
-            <div className="flex flex-col gap-4">
-                {loading ? (
-                    <div className="text-center py-10">
-                        <p className="text-zinc-500">Loading history...</p>
+    // --- THE ADVANCED LIST VIEW (Intercepts the Dashboard) ---
+    if (isListView) {
+        return (
+            <main className="min-h-screen bg-black text-white p-6 max-w-md mx-auto animate-in slide-in-from-right-8 duration-300 pb-24">
+                {/* Full List Toolbar */}
+                <header className="flex justify-between items-center mb-8 mt-4">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setIsListView(false)}
+                            className="bg-zinc-900 hover:bg-zinc-800 p-2.5 rounded-full transition-colors border border-zinc-800"
+                        >
+                            <ArrowLeft size={20} className="text-zinc-400" />
+                        </button>
+                        <h2 className="text-xl font-bold tracking-tight">
+                            {activeTab === "mods" ? "Modifications" : "Expenses"}
+                        </h2>
                     </div>
-                ) : feedData.length === 0 ? (
-                    <div className="text-center py-20 bg-zinc-900/30 rounded-2xl border border-zinc-800 border-dashed">
-                        <p className="text-zinc-500 mb-2">No entries in this logbook.</p>
-                        <p className="text-sm text-zinc-600">Hit the + button to add your first.</p>
+
+                    {/* Sorting Controls */}
+                    <div className="flex items-center gap-2">
+                        {/* The Field Selector */}
+                        <div className="relative">
+                            <select
+                                value={sortField}
+                                onChange={(e) => setSortField(e.target.value)}
+                                className="appearance-none bg-zinc-900 border border-zinc-800 text-zinc-300 text-sm font-semibold py-2.5 pl-4 pr-4 rounded-xl focus:outline-none focus:border-blue-500 cursor-pointer text-center"
+                            >
+                                <option value="date">Date</option>
+                                <option value="cost">Price</option>
+                                <option value="name">Name</option>
+                            </select>
+                        </div>
+
+                        {/* The Direction Toggle Button */}
+                        <button
+                            onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
+                            className="bg-zinc-900 border border-zinc-800 p-2.5 rounded-xl hover:bg-zinc-800 transition-colors text-zinc-400 hover:text-white focus:outline-none focus:border-blue-500"
+                            title={sortOrder === "desc" ? "Descending" : "Ascending"}
+                        >
+                            {sortOrder === "desc" ? <ArrowDown size={18} /> : <ArrowUp size={18} />}
+                        </button>
                     </div>
-                ) : (
-                    (isExpanded ? feedData : feedData.slice(0, 3)).map((item, index) => {
-                        const isFaded = !isExpanded && index === 2;
+                </header>
+
+                {/* Dense List Render */}
+                <div className="flex flex-col gap-3">
+                    {sortedData.map((item) => {
                         const isModList = activeTab === "mods";
                         const itemTitle = isModList ? item.name : item.title;
                         const itemDate = new Date(
@@ -482,7 +485,112 @@ function LogbookContent() {
                             <Link
                                 href={`/logbook/${item.id}?type=${isModList ? "mod" : "maintenance"}`}
                                 key={item.id}
-                                className={`bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex gap-4 items-center transition-all duration-300 cursor-pointer active:scale-[0.98] ${isFaded ? "opacity-70" : ""}`}
+                                className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-3 flex gap-4 items-center transition-all duration-300 cursor-pointer active:scale-[0.98]"
+                            >
+                                {/* Denser Image Wrapper (w-12 h-12 instead of 16) */}
+                                <div className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden relative">
+                                    {itemImg ? (
+                                        <img src={itemImg} alt={itemTitle} className="w-full h-full object-cover" />
+                                    ) : (
+                                        catObj?.icon || <Box className="text-zinc-600" size={20} />
+                                    )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-bold text-base truncate">{itemTitle}</h3>
+                                    <div className="flex justify-between items-center text-xs mt-1">
+                                        <span className="text-zinc-500">{itemDate}</span>
+                                        <span className="font-mono font-bold text-blue-400">${item.cost}</span>
+                                    </div>
+                                </div>
+                            </Link>
+                        );
+                    })}
+                </div>
+            </main>
+        );
+    }
+
+    // --- DASHBOARD UI (Normal View) ---
+    return (
+        <main className="min-h-screen bg-black text-white p-6 max-w-md mx-auto">
+            <header className="mb-6 mt-4">
+                <h1 className="text-3xl font-extrabold tracking-tight mb-4">
+                    {activeVehicle.year} {activeVehicle.make} {activeVehicle.model}
+                </h1>
+
+                <div className="bg-zinc-900 p-1 rounded-xl flex">
+                    <button
+                        onClick={() => {
+                            setActiveTab("mods");
+                            setIsListView(false);
+                            setFeedFilter("history");
+                        }}
+                        className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "mods" ? "bg-blue-600 text-white shadow-md" : "text-zinc-500 hover:text-zinc-300"}`}
+                    >
+                        Modifications
+                    </button>
+                    <button
+                        onClick={() => {
+                            setActiveTab("maintenance");
+                            setIsListView(false);
+                            setFeedFilter("history");
+                        }}
+                        className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "maintenance" ? "bg-zinc-700 text-white shadow-md" : "text-zinc-500 hover:text-zinc-300"}`}
+                    >
+                        Expenses
+                    </button>
+                </div>
+
+                <div className="flex gap-6 mt-5 border-b border-zinc-800/50 px-2">
+                    <button
+                        onClick={() => {
+                            setFeedFilter("history");
+                            setIsListView(false);
+                        }}
+                        className={`text-sm font-bold pb-3 border-b-2 transition-all ${feedFilter === "history" ? "border-blue-500 text-white" : "border-transparent text-zinc-600 hover:text-zinc-400"}`}
+                    >
+                        {activeTab === "mods" ? "Installed" : "Completed"}
+                    </button>
+                    <button
+                        onClick={() => {
+                            setFeedFilter("planned");
+                            setIsListView(false);
+                        }}
+                        className={`text-sm font-bold pb-3 border-b-2 transition-all ${feedFilter === "planned" ? "border-blue-500 text-white" : "border-transparent text-zinc-600 hover:text-zinc-400"}`}
+                    >
+                        {activeTab === "mods" ? "Wishlist" : "Upcoming"}
+                    </button>
+                </div>
+            </header>
+
+            <div className="flex flex-col gap-4">
+                {loading ? (
+                    <div className="text-center py-10">
+                        <p className="text-zinc-500">Loading history...</p>
+                    </div>
+                ) : sortedData.length === 0 ? (
+                    <div className="text-center py-20 bg-zinc-900/30 rounded-2xl border border-zinc-800 border-dashed">
+                        <p className="text-zinc-500 mb-2">No entries in this list.</p>
+                        <p className="text-sm text-zinc-600">Hit the + button to add one.</p>
+                    </div>
+                ) : (
+                    sortedData.slice(0, 3).map((item, index) => {
+                        const isFaded = index === 2; // Fade the 3rd card
+                        const isModList = activeTab === "mods";
+                        const itemTitle = isModList ? item.name : item.title;
+                        const itemDate = new Date(
+                            isModList ? item.installed_date : item.date_logged,
+                        ).toLocaleDateString();
+                        const itemImg = isModList ? item.image_url : item.receipt_url;
+                        const catObj = (isModList ? MOD_CATEGORIES : MAINT_CATEGORIES).find(
+                            (c) => c.id === item.category,
+                        );
+
+                        return (
+                            <Link
+                                href={`/logbook/${item.id}?type=${isModList ? "mod" : "maintenance"}`}
+                                key={item.id}
+                                className={`bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-4 flex gap-4 items-center transition-all duration-300 cursor-pointer active:scale-[0.98] ${isFaded ? "opacity-70" : ""}`}
                                 style={
                                     isFaded
                                         ? {
@@ -500,17 +608,14 @@ function LogbookContent() {
                                         catObj?.icon || <Box className="text-zinc-600" />
                                     )}
                                 </div>
-
                                 <div className="flex-1 min-w-0">
                                     <div className="flex justify-between items-start">
                                         <h3 className="font-bold text-lg truncate pr-2">{itemTitle}</h3>
                                     </div>
-
                                     <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider mb-1">
                                         {catObj?.label}{" "}
                                         {item.location || item.provider ? `• ${item.location || item.provider}` : ""}
                                     </p>
-
                                     <div className="flex justify-between items-center text-sm text-zinc-400">
                                         <span>{itemDate}</span>
                                         <span className="font-mono font-bold text-white">${item.cost}</span>
@@ -522,24 +627,16 @@ function LogbookContent() {
                 )}
             </div>
 
-            {feedData.length > 2 && (
+            {sortedData.length > 2 && (
                 <button
-                    onClick={() => setIsExpanded(!isExpanded)}
+                    onClick={() => setIsListView(true)}
                     className="w-full bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 py-3 rounded-xl flex items-center justify-center gap-2 text-zinc-400 hover:text-white font-semibold transition-colors mt-2"
                 >
-                    {!isExpanded ? (
-                        <>
-                            <List size={18} /> View All {feedData.length} Entries
-                        </>
-                    ) : (
-                        <>
-                            <ChevronUp size={18} /> Collapse List
-                        </>
-                    )}
+                    <List size={18} /> View All {sortedData.length} Entries
                 </button>
             )}
 
-            {!isExpanded && (
+            {!isListView && (
                 <div className="mt-8 mb-24 bg-zinc-900/20 border border-zinc-800/50 rounded-3xl p-6 text-center animate-in fade-in duration-500 flex flex-col items-center justify-center">
                     <Activity className="text-zinc-700 mx-auto mb-3" size={32} />
                     <h3 className="text-zinc-300 font-bold mb-1">Analytics Sandbox</h3>
