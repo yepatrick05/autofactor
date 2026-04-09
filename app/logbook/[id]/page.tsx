@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import LogbookForm from "@/components/LogbookForm";
 import { ArrowLeft, Trash2, Edit3, Calendar, DollarSign, MapPin, Gauge, FileText } from "lucide-react";
 
 function EntryDetailContent() {
@@ -10,14 +11,15 @@ function EntryDetailContent() {
     const searchParams = useSearchParams();
 
     const id = params.id as string;
-    const type = searchParams.get("type"); // 'mod' or 'maintenance'
+    const type = searchParams.get("type");
 
     const [entry, setEntry] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [refreshKey, setRefreshKey] = useState(0);
 
-    // 1. Fetch the exact entry
     useEffect(() => {
         if (!id || !type) return;
 
@@ -30,25 +32,22 @@ function EntryDetailContent() {
         };
 
         fetchEntry();
-    }, [id, type]);
+    }, [id, type, refreshKey]);
 
-    // 2. The Delete Function
     const handleDelete = async () => {
         setIsDeleting(true);
         const table = type === "mod" ? "modifications" : "maintenance";
 
-        // First, delete the image from storage if it exists (Good practice to save AWS costs!)
         const imageUrl = type === "mod" ? entry.image_url : entry.receipt_url;
         if (imageUrl) {
             const fileName = imageUrl.split("/").pop();
             if (fileName) await supabase.storage.from("mod-images").remove([fileName]);
         }
 
-        // Then delete the row from Postgres
         const { error } = await supabase.from(table).delete().eq("id", id);
 
         if (!error) {
-            router.push("/logbook"); // Kick them back to the logbook
+            router.push("/logbook");
         } else {
             alert("Failed to delete entry.");
             setIsDeleting(false);
@@ -75,7 +74,25 @@ function EntryDetailContent() {
         );
     }
 
-    // Normalize data depending on table type
+    if (isEditing) {
+        return (
+            <main className="min-h-screen bg-black text-white p-6 max-w-md mx-auto animate-in slide-in-from-bottom-4 pb-24">
+                <h1 className="text-2xl font-bold mb-6">Edit Entry</h1>
+                <LogbookForm
+                    type={type as "mod" | "maintenance"}
+                    category={entry.category}
+                    isFuture={type === "mod" ? entry.is_wishlist : entry.is_upcoming}
+                    initialData={entry}
+                    onSuccess={() => {
+                        setIsEditing(false);
+                        setRefreshKey((prev) => prev + 1);
+                    }}
+                    onCancel={() => setIsEditing(false)}
+                />
+            </main>
+        );
+    }
+
     const isMod = type === "mod";
     const title = isMod ? entry.name : entry.title;
     const date = new Date(isMod ? entry.installed_date : entry.date_logged).toLocaleDateString();
@@ -84,8 +101,7 @@ function EntryDetailContent() {
 
     return (
         <main className="min-h-screen bg-black text-white pb-24 animate-in fade-in">
-            {/* HEADER: Back Button & Actions */}
-            <header className="fixed top-0 left-0 right-0 z-10 bg-linear-to-b from-black/90 to-transparent pt-6 pb-4 px-6 flex justify-between items-center max-w-md mx-auto">
+            <header className="fixed top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/90 to-transparent pt-6 pb-4 px-6 flex justify-between items-center max-w-md mx-auto">
                 <button
                     onClick={() => router.back()}
                     className="bg-zinc-900/80 backdrop-blur p-2 rounded-full hover:bg-zinc-800 transition-colors"
@@ -94,7 +110,7 @@ function EntryDetailContent() {
                 </button>
                 <div className="flex gap-3">
                     <button
-                        onClick={() => router.push(`/logbook?edit=true&id=${id}&type=${type}`)}
+                        onClick={() => setIsEditing(true)}
                         className="bg-zinc-900/80 backdrop-blur p-2 rounded-full hover:bg-zinc-800 transition-colors text-zinc-300"
                     >
                         <Edit3 size={20} />
@@ -108,19 +124,17 @@ function EntryDetailContent() {
                 </div>
             </header>
 
-            {/* HERO IMAGE OR GRADIENT */}
             <div className="w-full max-w-md mx-auto h-72 bg-zinc-900 relative sm:rounded-b-3xl overflow-hidden">
                 {image ? (
                     <img src={image} alt={title} className="w-full h-full object-cover" />
                 ) : (
-                    <div className="w-full h-full bg-linear-to-br from-zinc-800 to-black flex items-center justify-center">
+                    <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-black flex items-center justify-center">
                         <span className="text-zinc-700 text-6xl">No Image</span>
                     </div>
                 )}
-                <div className="absolute inset-0 bg-linear-to-t from-black via-black/40 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
             </div>
 
-            {/* CONTENT */}
             <div className="max-w-md mx-auto px-6 -mt-12 relative z-10">
                 <div className="mb-2 flex items-center gap-2">
                     <span className="bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full">
@@ -178,7 +192,6 @@ function EntryDetailContent() {
                 )}
             </div>
 
-            {/* THE DELETE CONFIRMATION MODAL */}
             {showDeleteModal && (
                 <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
                     <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl w-full max-w-sm shadow-2xl animate-in zoom-in-95">
@@ -213,7 +226,6 @@ function EntryDetailContent() {
     );
 }
 
-// Wrap in Suspense due to useSearchParams
 export default function EntryDetailPage() {
     return (
         <Suspense fallback={<div className="bg-black min-h-screen"></div>}>

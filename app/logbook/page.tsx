@@ -4,7 +4,8 @@ import { supabase } from "@/lib/supabase";
 import { useVehicle } from "@/components/VehicleContext";
 import { useSearchParams, useRouter } from "next/navigation";
 import LogbookCard from "@/components/LogbookCard";
-import Link from "next/link";
+
+import LogbookForm from "@/components/LogbookForm";
 import {
     Settings,
     Droplets,
@@ -59,84 +60,35 @@ function LogbookContent() {
     const searchParams = useSearchParams();
     const { activeVehicle, isContextLoading } = useVehicle();
 
-    // --- VIEW STATE ---
     const [activeTab, setActiveTab] = useState<"mods" | "maintenance">("mods");
     const [feedFilter, setFeedFilter] = useState<"history" | "planned">("history");
     const [feedData, setFeedData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // --- Advanced View State ---
     const [isListView, setIsListView] = useState(false);
     const [sortField, setSortField] = useState("date");
     const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
-    // --- Card State ---
-    const [editId, setEditId] = useState<string | null>(null);
-
-    // --- WIZARD STATE ---
     const [wizardType, setWizardType] = useState<"mod" | "maintenance" | null>(null);
     const [addStep, setAddStep] = useState(1);
     const [selectedCategory, setSelectedCategory] = useState("");
     const [isFuture, setIsFuture] = useState(false);
 
-    // Form State
-    const [title, setTitle] = useState("");
-    const [cost, setCost] = useState("");
-    const [provider, setProvider] = useState("");
-    const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-    const [notes, setNotes] = useState("");
-    const [odometer, setOdometer] = useState("");
-    const [volume, setVolume] = useState("");
-    const [file, setFile] = useState<File | null>(null);
-    const [isUploading, setIsUploading] = useState(false);
-
     useEffect(() => {
         const newParam = searchParams.get("new");
-        const editParam = searchParams.get("edit");
-        const idParam = searchParams.get("id");
-        const typeParam = searchParams.get("type");
-
         if (newParam === "mod") {
             setWizardType("mod");
             setAddStep(1);
             setIsFuture(false);
-            setEditId(null);
         } else if (newParam === "maintenance") {
             setWizardType("maintenance");
             setAddStep(1);
             setIsFuture(false);
-            setEditId(null);
-        } else if (editParam === "true" && idParam && typeParam) {
-            setEditId(idParam);
-            setWizardType(typeParam as "mod" | "maintenance");
-
-            const fetchEditData = async () => {
-                const table = typeParam === "mod" ? "modifications" : "maintenance";
-                const { data } = await supabase.from(table).select("*").eq("id", idParam).single();
-
-                if (data) {
-                    setSelectedCategory(data.category);
-                    setTitle(typeParam === "mod" ? data.name : data.title);
-                    setCost(data.cost.toString());
-                    setProvider(typeParam === "mod" ? data.location : data.provider);
-                    setDate(typeParam === "mod" ? data.installed_date : data.date_logged);
-                    setNotes(data.notes || "");
-                    setIsFuture(typeParam === "mod" ? data.is_wishlist : data.is_upcoming);
-
-                    if (typeParam === "maintenance") {
-                        setOdometer(data.odometer_reading?.toString() || "");
-                        setVolume(data.volume?.toString() || "");
-                    }
-
-                    setAddStep(2);
-                }
-            };
-            fetchEditData();
         }
     }, [searchParams]);
+
     useEffect(() => {
         if (!activeVehicle?.id) return;
-
         const fetchFeed = async () => {
             setLoading(true);
             const isPlanned = feedFilter === "planned";
@@ -162,25 +114,19 @@ function LogbookContent() {
         fetchFeed();
     }, [activeVehicle?.id, activeTab, wizardType, feedFilter]);
 
-    // --- THE SORTING ENGINE ---
     const sortedData = [...feedData].sort((a, b) => {
         const isModList = activeTab === "mods";
-
-        // Sort by Date
         if (sortField === "date") {
             const dateA = new Date(isModList ? a.installed_date : a.date_logged).getTime();
             const dateB = new Date(isModList ? b.installed_date : b.date_logged).getTime();
             return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
         }
-        // Sort by Cost
         if (sortField === "cost") {
             return sortOrder === "desc" ? b.cost - a.cost : a.cost - b.cost;
         }
-        // Sort by Name
         if (sortField === "name") {
             const nameA = isModList ? a.name : a.title;
             const nameB = isModList ? b.name : b.title;
-            // asc = A-Z, desc = Z-A
             return sortOrder === "desc" ? nameB.localeCompare(nameA) : nameA.localeCompare(nameB);
         }
         return 0;
@@ -191,85 +137,10 @@ function LogbookContent() {
         setAddStep(1);
         setSelectedCategory("");
         setIsFuture(false);
-        setTitle("");
-        setCost("");
-        setProvider("");
-        setNotes("");
-        setOdometer("");
-        setVolume("");
-        setFile(null);
-        setEditId(null);
-        router.push("/logbook");
+        router.push("/logbook"); // Clear the URL params
     };
 
-    const handleSave = async () => {
-        setIsUploading(true);
-        try {
-            let fileUrl = null;
-            if (file) {
-                const fileExt = file.name.split(".").pop();
-                const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-                const { error: uploadError } = await supabase.storage.from("mod-images").upload(fileName, file);
-                if (uploadError) throw uploadError;
-                const { data } = supabase.storage.from("mod-images").getPublicUrl(fileName);
-                fileUrl = data.publicUrl;
-            }
-
-            const modPayload = {
-                vehicle_id: activeVehicle.id,
-                name: title,
-                category: selectedCategory,
-                cost: cost ? parseFloat(cost) : 0,
-                location: provider,
-                installed_date: date,
-                notes,
-                is_wishlist: isFuture,
-                ...(fileUrl && { image_url: fileUrl }),
-            };
-
-            const maintPayload = {
-                vehicle_id: activeVehicle.id,
-                title: selectedCategory === "fuel" ? "Fuel" : title,
-                category: selectedCategory,
-                cost: cost ? parseFloat(cost) : 0,
-                provider: provider,
-                date_logged: date,
-                odometer_reading: odometer ? parseInt(odometer) : null,
-                volume: volume ? parseFloat(volume) : null,
-                notes,
-                is_upcoming: isFuture,
-                ...(fileUrl && { receipt_url: fileUrl }),
-            };
-
-            if (wizardType === "mod") {
-                if (editId) {
-                    const { error } = await supabase.from("modifications").update(modPayload).eq("id", editId);
-                    if (error) throw error;
-                } else {
-                    const { error } = await supabase.from("modifications").insert([modPayload]);
-                    if (error) throw error;
-                }
-            } else {
-                if (editId) {
-                    const { error } = await supabase.from("maintenance").update(maintPayload).eq("id", editId);
-                    if (error) throw error;
-                } else {
-                    const { error } = await supabase.from("maintenance").insert([maintPayload]);
-                    if (error) throw error;
-                }
-            }
-            handleCloseWizard();
-        } catch (error: any) {
-            console.error("Save Error:", error);
-            alert("Failed to save entry. Check console.");
-        } finally {
-            setIsUploading(false);
-        }
-    };
-
-    if (isContextLoading) {
-        return <main className="min-h-screen bg-black"></main>;
-    }
+    if (isContextLoading) return <main className="min-h-screen bg-black"></main>;
 
     if (!activeVehicle) {
         return (
@@ -287,7 +158,6 @@ function LogbookContent() {
         );
     }
 
-    // --- WIZARD UI ---
     if (wizardType) {
         const isMod = wizardType === "mod";
         const categories = isMod ? MOD_CATEGORIES : MAINT_CATEGORIES;
@@ -307,7 +177,7 @@ function LogbookContent() {
                 </header>
 
                 {addStep === 1 ? (
-                    <div className="flex flex-col gap-6">
+                    <div className="flex flex-col gap-6 animate-in fade-in">
                         <div className="bg-zinc-900 p-1 rounded-xl flex">
                             <button
                                 onClick={() => setIsFuture(false)}
@@ -342,144 +212,30 @@ function LogbookContent() {
                         </div>
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-right-4">
-                        <div className="bg-blue-900/20 border border-blue-500/30 p-4 rounded-xl flex items-center gap-3 mb-2">
+                    <div className="flex flex-col gap-4">
+                        <div className="bg-blue-900/20 border border-blue-500/30 p-4 rounded-xl flex items-center gap-3 mb-2 animate-in slide-in-from-right-4">
                             {categories.find((c) => c.id === selectedCategory)?.icon}
                             <span className="font-bold text-blue-400">
                                 {categories.find((c) => c.id === selectedCategory)?.label}
                             </span>
                         </div>
 
-                        {selectedCategory === "fuel" ? (
-                            <>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <input
-                                        type="number"
-                                        placeholder="Total Cost ($)"
-                                        className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white focus:outline-none focus:border-zinc-500"
-                                        value={cost}
-                                        onChange={(e) => setCost(e.target.value)}
-                                    />
-                                    <input
-                                        type="number"
-                                        placeholder={`Volume (${activeVehicle.fuel_unit})`}
-                                        className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white focus:outline-none focus:border-zinc-500"
-                                        value={volume}
-                                        onChange={(e) => setVolume(e.target.value)}
-                                    />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <input
-                                        type="date"
-                                        className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white focus:outline-none focus:border-zinc-500"
-                                        value={date}
-                                        onChange={(e) => setDate(e.target.value)}
-                                    />
-                                    <input
-                                        type="number"
-                                        placeholder={`Odometer (${activeVehicle.odometer_unit})`}
-                                        className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white focus:outline-none focus:border-zinc-500"
-                                        value={odometer}
-                                        onChange={(e) => setOdometer(e.target.value)}
-                                    />
-                                </div>
-                                <input
-                                    type="text"
-                                    placeholder="Gas Station / Brand"
-                                    className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white focus:outline-none focus:border-zinc-500"
-                                    value={provider}
-                                    onChange={(e) => setProvider(e.target.value)}
-                                />
-                            </>
-                        ) : (
-                            <>
-                                <input
-                                    type="text"
-                                    placeholder="Title"
-                                    className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white focus:outline-none focus:border-zinc-500"
-                                    value={title}
-                                    onChange={(e) => setTitle(e.target.value)}
-                                />
-                                <div className="grid grid-cols-2 gap-4">
-                                    <input
-                                        type="number"
-                                        placeholder="Cost ($)"
-                                        className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white focus:outline-none focus:border-zinc-500"
-                                        value={cost}
-                                        onChange={(e) => setCost(e.target.value)}
-                                    />
-                                    <input
-                                        type="date"
-                                        className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white focus:outline-none focus:border-zinc-500"
-                                        value={date}
-                                        onChange={(e) => setDate(e.target.value)}
-                                    />
-                                </div>
-                                <input
-                                    type="text"
-                                    placeholder="Vendor / Shop (Optional)"
-                                    className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white focus:outline-none focus:border-zinc-500"
-                                    value={provider}
-                                    onChange={(e) => setProvider(e.target.value)}
-                                />
-                                {!isMod && (
-                                    <input
-                                        type="number"
-                                        placeholder={`Odometer Reading (${activeVehicle.odometer_unit})`}
-                                        className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white focus:outline-none focus:border-zinc-500"
-                                        value={odometer}
-                                        onChange={(e) => setOdometer(e.target.value)}
-                                    />
-                                )}
-                            </>
-                        )}
-
-                        <textarea
-                            placeholder="Notes (Specs, thoughts...)"
-                            rows={3}
-                            className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white focus:outline-none focus:border-zinc-500 resize-none"
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
+                        <LogbookForm
+                            type={wizardType}
+                            category={selectedCategory}
+                            isFuture={isFuture}
+                            onSuccess={handleCloseWizard}
+                            onCancel={() => setAddStep(1)}
                         />
-
-                        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-                            <label className="text-sm text-zinc-400 font-bold uppercase tracking-wider mb-2 block">
-                                Attach Receipt or Photo
-                            </label>
-                            <input
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)}
-                                className="text-sm text-zinc-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
-                            />
-                        </div>
-
-                        <div className="flex gap-3 mt-4">
-                            <button
-                                onClick={() => setAddStep(1)}
-                                className="flex-1 py-4 text-zinc-400 font-bold bg-zinc-900 rounded-xl"
-                            >
-                                Back
-                            </button>
-                            <button
-                                onClick={handleSave}
-                                disabled={(selectedCategory !== "fuel" && !title) || isUploading}
-                                className="flex-2 w-2/3 bg-blue-600 text-white font-bold py-4 rounded-xl disabled:opacity-50"
-                            >
-                                {isUploading ? "Saving..." : "Save Entry"}
-                            </button>
-                        </div>
                     </div>
                 )}
             </main>
         );
     }
 
-    // --- THE ADVANCED LIST VIEW ---
     if (isListView) {
         return (
             <main className="min-h-screen bg-black text-white p-6 max-w-md mx-auto animate-in slide-in-from-right-8 duration-300 pb-24">
-                {/* Full List Toolbar */}
                 <header className="flex justify-between items-center mb-8 mt-4">
                     <div className="flex items-center gap-3">
                         <button
@@ -492,10 +248,7 @@ function LogbookContent() {
                             {activeTab === "mods" ? "Modifications" : "Expenses"}
                         </h2>
                     </div>
-
-                    {/* Sorting Controls */}
                     <div className="flex items-center gap-2">
-                        {/* The Field Selector */}
                         <div className="relative">
                             <select
                                 value={sortField}
@@ -507,12 +260,9 @@ function LogbookContent() {
                                 <option value="name">Name</option>
                             </select>
                         </div>
-
-                        {/* The Direction Toggle Button */}
                         <button
                             onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
                             className="bg-zinc-900 border border-zinc-800 p-2.5 rounded-xl hover:bg-zinc-800 transition-colors text-zinc-400 hover:text-white focus:outline-none focus:border-blue-500"
-                            title={sortOrder === "desc" ? "Descending" : "Ascending"}
                         >
                             {sortOrder === "desc" ? <ArrowDown size={18} /> : <ArrowUp size={18} />}
                         </button>
@@ -520,25 +270,19 @@ function LogbookContent() {
                 </header>
 
                 <div className="flex flex-col gap-3">
-                    {sortedData.map((item) => {
-                        const isModList = activeTab === "mods";
-
-                        return (
-                            <LogbookCard
-                                key={item.id}
-                                item={item}
-                                isModList={isModList}
-                                categories={isModList ? MOD_CATEGORIES : MAINT_CATEGORIES}
-                                size="compact"
-                            />
-                        );
-                    })}
+                    {sortedData.map((item) => (
+                        <LogbookCard
+                            key={item.id}
+                            item={item}
+                            isModList={activeTab === "mods"}
+                            categories={activeTab === "mods" ? MOD_CATEGORIES : MAINT_CATEGORIES}
+                        />
+                    ))}
                 </div>
             </main>
         );
     }
 
-    // --- DASHBOARD UI (Normal View) ---
     return (
         <main className="min-h-screen bg-black text-white p-6 max-w-md mx-auto">
             <header className="mb-6 mt-4">
