@@ -1,18 +1,50 @@
-// components/VehicleContext.tsx
 "use client";
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
 type VehicleContextType = {
     activeVehicle: any | null;
     setActiveVehicle: (vehicle: any) => void;
+    isContextLoading: boolean;
 };
 
 const VehicleContext = createContext<VehicleContextType | undefined>(undefined);
 
 export function VehicleProvider({ children }: { children: ReactNode }) {
-    const [activeVehicle, setActiveVehicle] = useState<any | null>(null);
+    const [activeVehicle, setActiveVehicleState] = useState<any | null>(null);
+    const [isContextLoading, setIsContextLoading] = useState(true);
 
-    return <VehicleContext.Provider value={{ activeVehicle, setActiveVehicle }}>{children}</VehicleContext.Provider>;
+    useEffect(() => {
+        const storedVehicle = localStorage.getItem("autofactor_active_vehicle");
+        if (storedVehicle) {
+            try {
+                setActiveVehicleState(JSON.parse(storedVehicle));
+            } catch (error) {
+                console.error("Failed to parse stored vehicle", error);
+            }
+        }
+        setIsContextLoading(false);
+    }, []);
+
+    const handleSetActiveVehicle = (vehicle: any) => {
+        setActiveVehicleState(vehicle);
+        if (vehicle) {
+            localStorage.setItem("autofactor_active_vehicle", JSON.stringify(vehicle));
+        } else {
+            localStorage.removeItem("autofactor_active_vehicle");
+        }
+    };
+
+    return (
+        <VehicleContext.Provider
+            value={{
+                activeVehicle,
+                setActiveVehicle: handleSetActiveVehicle,
+                isContextLoading,
+            }}
+        >
+            {children}
+        </VehicleContext.Provider>
+    );
 }
 
 export function useVehicle() {

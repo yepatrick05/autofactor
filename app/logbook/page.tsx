@@ -56,7 +56,7 @@ const MAINT_CATEGORIES = [
 function LogbookContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { activeVehicle } = useVehicle();
+    const { activeVehicle, isContextLoading } = useVehicle();
 
     // --- VIEW STATE ---
     const [activeTab, setActiveTab] = useState<"mods" | "maintenance">("mods");
@@ -101,6 +101,7 @@ function LogbookContent() {
 
     useEffect(() => {
         if (!activeVehicle?.id) return;
+
         const fetchFeed = async () => {
             setLoading(true);
             const isPlanned = feedFilter === "planned";
@@ -219,6 +220,11 @@ function LogbookContent() {
             setIsUploading(false);
         }
     };
+
+    // Prevent flicker while reading from Local Storage
+    if (isContextLoading) {
+        return <main className="min-h-screen bg-black"></main>;
+    }
 
     if (!activeVehicle) {
         return (

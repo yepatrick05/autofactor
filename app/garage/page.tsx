@@ -51,8 +51,18 @@ function GarageContent() {
 
             setVehicles(data || []);
 
-            if (data && data.length > 0 && !activeVehicle) {
-                setActiveVehicle(data[0]);
+            if (data && data.length > 0) {
+                const restoredVehicleStr = localStorage.getItem("autofactor_active_vehicle");
+
+                if (restoredVehicleStr) {
+                    const restoredVehicle = JSON.parse(restoredVehicleStr);
+                    const stillExists = data.some((v) => v.id === restoredVehicle.id);
+                    if (!stillExists) {
+                        setActiveVehicle(data[0]);
+                    }
+                } else {
+                    setActiveVehicle(data[0]);
+                }
             }
         } catch (error: any) {
             console.error("Error fetching vehicles:", error.message);
