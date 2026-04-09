@@ -3,6 +3,7 @@ import { useState, useEffect, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import { useVehicle } from "@/components/VehicleContext";
 import { useSearchParams, useRouter } from "next/navigation";
+import LogbookCard from "@/components/LogbookCard";
 import Link from "next/link";
 import {
     Settings,
@@ -64,10 +65,13 @@ function LogbookContent() {
     const [feedData, setFeedData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // NEW: Advanced View State
+    // --- Advanced View State ---
     const [isListView, setIsListView] = useState(false);
     const [sortField, setSortField] = useState("date");
     const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
+
+    // --- Card State ---
+    const [editId, setEditId] = useState<string | null>(null);
 
     // --- WIZARD STATE ---
     const [wizardType, setWizardType] = useState<"mod" | "maintenance" | null>(null);
@@ -88,17 +92,48 @@ function LogbookContent() {
 
     useEffect(() => {
         const newParam = searchParams.get("new");
+        const editParam = searchParams.get("edit");
+        const idParam = searchParams.get("id");
+        const typeParam = searchParams.get("type");
+
         if (newParam === "mod") {
             setWizardType("mod");
             setAddStep(1);
             setIsFuture(false);
+            setEditId(null);
         } else if (newParam === "maintenance") {
             setWizardType("maintenance");
             setAddStep(1);
             setIsFuture(false);
+            setEditId(null);
+        } else if (editParam === "true" && idParam && typeParam) {
+            setEditId(idParam);
+            setWizardType(typeParam as "mod" | "maintenance");
+
+            const fetchEditData = async () => {
+                const table = typeParam === "mod" ? "modifications" : "maintenance";
+                const { data } = await supabase.from(table).select("*").eq("id", idParam).single();
+
+                if (data) {
+                    setSelectedCategory(data.category);
+                    setTitle(typeParam === "mod" ? data.name : data.title);
+                    setCost(data.cost.toString());
+                    setProvider(typeParam === "mod" ? data.location : data.provider);
+                    setDate(typeParam === "mod" ? data.installed_date : data.date_logged);
+                    setNotes(data.notes || "");
+                    setIsFuture(typeParam === "mod" ? data.is_wishlist : data.is_upcoming);
+
+                    if (typeParam === "maintenance") {
+                        setOdometer(data.odometer_reading?.toString() || "");
+                        setVolume(data.volume?.toString() || "");
+                    }
+
+                    setAddStep(2);
+                }
+            };
+            fetchEditData();
         }
     }, [searchParams]);
-
     useEffect(() => {
         if (!activeVehicle?.id) return;
 
@@ -163,6 +198,7 @@ function LogbookContent() {
         setOdometer("");
         setVolume("");
         setFile(null);
+        setEditId(null);
         router.push("/logbook");
     };
 
@@ -179,38 +215,48 @@ function LogbookContent() {
                 fileUrl = data.publicUrl;
             }
 
+            const modPayload = {
+                vehicle_id: activeVehicle.id,
+                name: title,
+                category: selectedCategory,
+                cost: cost ? parseFloat(cost) : 0,
+                location: provider,
+                installed_date: date,
+                notes,
+                is_wishlist: isFuture,
+                ...(fileUrl && { image_url: fileUrl }),
+            };
+
+            const maintPayload = {
+                vehicle_id: activeVehicle.id,
+                title: selectedCategory === "fuel" ? "Fuel" : title,
+                category: selectedCategory,
+                cost: cost ? parseFloat(cost) : 0,
+                provider: provider,
+                date_logged: date,
+                odometer_reading: odometer ? parseInt(odometer) : null,
+                volume: volume ? parseFloat(volume) : null,
+                notes,
+                is_upcoming: isFuture,
+                ...(fileUrl && { receipt_url: fileUrl }),
+            };
+
             if (wizardType === "mod") {
-                const { error } = await supabase.from("modifications").insert([
-                    {
-                        vehicle_id: activeVehicle.id,
-                        name: title,
-                        category: selectedCategory,
-                        cost: cost ? parseFloat(cost) : 0,
-                        location: provider,
-                        installed_date: date,
-                        notes,
-                        is_wishlist: isFuture,
-                        image_url: fileUrl,
-                    },
-                ]);
-                if (error) throw error;
+                if (editId) {
+                    const { error } = await supabase.from("modifications").update(modPayload).eq("id", editId);
+                    if (error) throw error;
+                } else {
+                    const { error } = await supabase.from("modifications").insert([modPayload]);
+                    if (error) throw error;
+                }
             } else {
-                const { error } = await supabase.from("maintenance").insert([
-                    {
-                        vehicle_id: activeVehicle.id,
-                        title: selectedCategory === "fuel" ? "Fuel" : title,
-                        category: selectedCategory,
-                        cost: cost ? parseFloat(cost) : 0,
-                        provider: provider,
-                        date_logged: date,
-                        odometer_reading: odometer ? parseInt(odometer) : null,
-                        volume: volume ? parseFloat(volume) : null,
-                        notes,
-                        is_upcoming: isFuture,
-                        receipt_url: fileUrl,
-                    },
-                ]);
-                if (error) throw error;
+                if (editId) {
+                    const { error } = await supabase.from("maintenance").update(maintPayload).eq("id", editId);
+                    if (error) throw error;
+                } else {
+                    const { error } = await supabase.from("maintenance").insert([maintPayload]);
+                    if (error) throw error;
+                }
             }
             handleCloseWizard();
         } catch (error: any) {
@@ -221,7 +267,6 @@ function LogbookContent() {
         }
     };
 
-    // Prevent flicker while reading from Local Storage
     if (isContextLoading) {
         return <main className="min-h-screen bg-black"></main>;
     }
@@ -430,7 +475,7 @@ function LogbookContent() {
         );
     }
 
-    // --- THE ADVANCED LIST VIEW (Intercepts the Dashboard) ---
+    // --- THE ADVANCED LIST VIEW ---
     if (isListView) {
         return (
             <main className="min-h-screen bg-black text-white p-6 max-w-md mx-auto animate-in slide-in-from-right-8 duration-300 pb-24">
@@ -474,41 +519,18 @@ function LogbookContent() {
                     </div>
                 </header>
 
-                {/* Dense List Render */}
                 <div className="flex flex-col gap-3">
                     {sortedData.map((item) => {
                         const isModList = activeTab === "mods";
-                        const itemTitle = isModList ? item.name : item.title;
-                        const itemDate = new Date(
-                            isModList ? item.installed_date : item.date_logged,
-                        ).toLocaleDateString();
-                        const itemImg = isModList ? item.image_url : item.receipt_url;
-                        const catObj = (isModList ? MOD_CATEGORIES : MAINT_CATEGORIES).find(
-                            (c) => c.id === item.category,
-                        );
 
                         return (
-                            <Link
-                                href={`/logbook/${item.id}?type=${isModList ? "mod" : "maintenance"}`}
+                            <LogbookCard
                                 key={item.id}
-                                className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-3 flex gap-4 items-center transition-all duration-300 cursor-pointer active:scale-[0.98]"
-                            >
-                                {/* Denser Image Wrapper (w-12 h-12 instead of 16) */}
-                                <div className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden relative">
-                                    {itemImg ? (
-                                        <img src={itemImg} alt={itemTitle} className="w-full h-full object-cover" />
-                                    ) : (
-                                        catObj?.icon || <Box className="text-zinc-600" size={20} />
-                                    )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <h3 className="font-bold text-base truncate">{itemTitle}</h3>
-                                    <div className="flex justify-between items-center text-xs mt-1">
-                                        <span className="text-zinc-500">{itemDate}</span>
-                                        <span className="font-mono font-bold text-blue-400">${item.cost}</span>
-                                    </div>
-                                </div>
-                            </Link>
+                                item={item}
+                                isModList={isModList}
+                                categories={isModList ? MOD_CATEGORIES : MAINT_CATEGORIES}
+                                size="compact"
+                            />
                         );
                     })}
                 </div>
@@ -581,22 +603,15 @@ function LogbookContent() {
                     </div>
                 ) : (
                     sortedData.slice(0, 3).map((item, index) => {
-                        const isFaded = index === 2; // Fade the 3rd card
+                        const isFaded = index === 2;
                         const isModList = activeTab === "mods";
-                        const itemTitle = isModList ? item.name : item.title;
-                        const itemDate = new Date(
-                            isModList ? item.installed_date : item.date_logged,
-                        ).toLocaleDateString();
-                        const itemImg = isModList ? item.image_url : item.receipt_url;
-                        const catObj = (isModList ? MOD_CATEGORIES : MAINT_CATEGORIES).find(
-                            (c) => c.id === item.category,
-                        );
 
                         return (
-                            <Link
-                                href={`/logbook/${item.id}?type=${isModList ? "mod" : "maintenance"}`}
+                            <div
                                 key={item.id}
-                                className={`bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-4 flex gap-4 items-center transition-all duration-300 cursor-pointer active:scale-[0.98] ${isFaded ? "opacity-70" : ""}`}
+                                className={
+                                    isFaded ? "opacity-70 transition-all duration-300" : "transition-all duration-300"
+                                }
                                 style={
                                     isFaded
                                         ? {
@@ -607,27 +622,12 @@ function LogbookContent() {
                                         : {}
                                 }
                             >
-                                <div className="w-16 h-16 bg-zinc-800 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden relative">
-                                    {itemImg ? (
-                                        <img src={itemImg} alt={itemTitle} className="w-full h-full object-cover" />
-                                    ) : (
-                                        catObj?.icon || <Box className="text-zinc-600" />
-                                    )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex justify-between items-start">
-                                        <h3 className="font-bold text-lg truncate pr-2">{itemTitle}</h3>
-                                    </div>
-                                    <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider mb-1">
-                                        {catObj?.label}{" "}
-                                        {item.location || item.provider ? `• ${item.location || item.provider}` : ""}
-                                    </p>
-                                    <div className="flex justify-between items-center text-sm text-zinc-400">
-                                        <span>{itemDate}</span>
-                                        <span className="font-mono font-bold text-white">${item.cost}</span>
-                                    </div>
-                                </div>
-                            </Link>
+                                <LogbookCard
+                                    item={item}
+                                    isModList={isModList}
+                                    categories={isModList ? MOD_CATEGORIES : MAINT_CATEGORIES}
+                                />
+                            </div>
                         );
                     })
                 )}

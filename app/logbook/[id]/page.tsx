@@ -85,7 +85,7 @@ function EntryDetailContent() {
     return (
         <main className="min-h-screen bg-black text-white pb-24 animate-in fade-in">
             {/* HEADER: Back Button & Actions */}
-            <header className="fixed top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/90 to-transparent pt-6 pb-4 px-6 flex justify-between items-center max-w-md mx-auto">
+            <header className="fixed top-0 left-0 right-0 z-10 bg-linear-to-b from-black/90 to-transparent pt-6 pb-4 px-6 flex justify-between items-center max-w-md mx-auto">
                 <button
                     onClick={() => router.back()}
                     className="bg-zinc-900/80 backdrop-blur p-2 rounded-full hover:bg-zinc-800 transition-colors"
@@ -94,7 +94,7 @@ function EntryDetailContent() {
                 </button>
                 <div className="flex gap-3">
                     <button
-                        onClick={() => alert("Edit mode coming soon!")}
+                        onClick={() => router.push(`/logbook?edit=true&id=${id}&type=${type}`)}
                         className="bg-zinc-900/80 backdrop-blur p-2 rounded-full hover:bg-zinc-800 transition-colors text-zinc-300"
                     >
                         <Edit3 size={20} />
@@ -113,11 +113,11 @@ function EntryDetailContent() {
                 {image ? (
                     <img src={image} alt={title} className="w-full h-full object-cover" />
                 ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-black flex items-center justify-center">
+                    <div className="w-full h-full bg-linear-to-br from-zinc-800 to-black flex items-center justify-center">
                         <span className="text-zinc-700 text-6xl">No Image</span>
                     </div>
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+                <div className="absolute inset-0 bg-linear-to-t from-black via-black/40 to-transparent" />
             </div>
 
             {/* CONTENT */}
